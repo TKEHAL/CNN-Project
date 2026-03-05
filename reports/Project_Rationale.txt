@@ -1,0 +1,279 @@
+Project Architecture and Rationale
+Fruit Image Classification (CNN)
+Date: 2026-03-05
+
+============================================================
+1) Executive Summary
+============================================================
+
+This project is organized as a professional, reproducible machine-learning codebase for image classification.
+The goal is to train, evaluate, and use a CNN model for fruit recognition while keeping experimentation, production code, data, and outputs clearly separated.
+
+Core principles used:
+- Reproducibility: config-driven runs
+- Maintainability: modular source layout
+- Traceability: explicit output artifacts in reports/
+- Practicality: scripts for train/evaluate/predict
+
+
+============================================================
+2) Project Structure (What Exists and Why)
+============================================================
+
+Current layout:
+
+ml_project/
+├── configs/
+├── data/
+│   ├── raw/
+│   └── processed/
+├── notebooks/
+├── reports/
+├── src/
+│   ├── data/
+│   ├── features/
+│   ├── models/
+│   └── utils/
+└── tests/
+
+Detailed purpose of each part:
+
+A) configs/
+- What: YAML profiles such as train.yaml, train_fast.yaml, evaluate.yaml, predict.yaml.
+- Why: decouples experiment settings from code.
+- Use:
+  - swap data paths without touching Python
+  - run fast vs full training profiles
+  - keep runs comparable between team members
+
+B) data/raw/
+- What: original dataset source files (fruits images).
+- Why: immutable reference data.
+- Use: training/validation/test ingestion.
+
+C) data/processed/
+- What: generated/transformed data artifacts.
+- Why: avoids mixing derived files with raw data.
+- Use: future feature caches, cleaned metadata, transformed datasets.
+
+D) notebooks/
+- What: experiment notebooks (CNNmodel.ipynb).
+- Why: exploration and visualization, not deployment logic.
+- Use: quick hypothesis checks and training demos.
+
+E) src/
+- What: production-grade Python package.
+- Why: stable, testable, reusable code.
+- Submodules:
+
+  src/data/
+  - dataset.py builds training/validation/test datasets from folder structure.
+  - Why separated: data IO is independent from model design.
+
+  src/features/
+  - preprocess.py standardizes image preparation for inference.
+  - Why separated: prevents training/inference preprocessing drift.
+
+  src/models/
+  - model.py contains architecture definition.
+  - train.py runs end-to-end training.
+  - evaluate.py computes test metrics and exports JSON.
+  - predict.py performs single-image inference.
+  - Why separated: clean lifecycle stages (build/train/eval/infer).
+
+  src/utils/
+  - config.py loads YAML safely.
+  - logging_utils.py standardizes logs.
+  - Why separated: shared cross-cutting concerns in one place.
+
+F) reports/
+- What: run outputs (metrics.json, training_history.csv, figures, rationale docs).
+- Why: centralized reporting evidence.
+- Use: grading, audit, progress tracking, model comparison.
+
+G) tests/
+- What: unit tests for config and preprocessing.
+- Why: baseline quality checks and regression prevention.
+- Use: quick validation after refactoring.
+
+
+============================================================
+3) How To Use This Project (Operational Guide)
+============================================================
+
+3.1 Full training
+- Command:
+  python -m src.models.train --config configs/train.yaml
+- Produces:
+  - src/models/modelCNN.h5
+  - reports/training_history.csv
+
+3.2 Fast training (iteration profile)
+- Command:
+  python -m src.models.train --config configs/train_fast.yaml
+- Why use it:
+  - faster feedback loop
+  - lower compute cost
+  - useful for debugging pipeline changes
+- Produces:
+  - src/models/modelCNN_fast.h5
+  - reports/training_history_fast.csv
+
+3.3 Evaluation
+- Command:
+  python -m src.models.evaluate --config configs/evaluate.yaml
+- Produces:
+  - reports/metrics.json
+- Typical metric keys:
+  - test_loss
+  - test_accuracy
+
+3.4 Single image prediction
+- Command:
+  python -m src.models.predict --config configs/predict.yaml --image /path/to/image.png
+- Output:
+  - predicted class
+  - per-class probabilities
+
+
+============================================================
+4) Why These Engineering Choices Were Made
+============================================================
+
+4.1 Config-driven pipeline
+- Reason: reproducible experiments and easier environment portability.
+- Tradeoff: slight complexity in config management.
+
+4.2 Separate train/eval/predict scripts
+- Reason: cleaner lifecycle boundaries and simpler automation.
+- Tradeoff: multiple entrypoints to maintain (worth it for clarity).
+
+4.3 Baseline CNN architecture
+- Reason: robust educational baseline for image classification.
+- Tradeoff: lower peak accuracy than transfer learning models in some cases.
+
+4.4 EarlyStopping + best-checkpoint saving
+- Reason: reduces overfitting and preserves best validation model.
+- Tradeoff: best epoch can differ from final epoch (expected behavior).
+
+4.5 tf.data custom loader
+- Reason: environment-compatible pipeline that avoids semaphore/threadpool restrictions from legacy Keras directory iterators in this sandbox.
+- Tradeoff: slightly more code than convenience loaders.
+
+4.6 Reporting artifacts in CSV/JSON
+- Reason: easy downstream analysis and automation compatibility.
+- Tradeoff: additional files generated per run.
+
+
+============================================================
+5) File-by-File Practical Use Mapping
+============================================================
+
+- configs/train.yaml
+  Primary full training profile.
+
+- configs/train_fast.yaml
+  Fast iteration profile for quick experiments.
+
+- configs/evaluate.yaml
+  Test-set evaluation profile.
+
+- configs/predict.yaml
+  Single-image inference profile.
+
+- src/data/dataset.py
+  Canonical dataset ingestion logic.
+
+- src/features/preprocess.py
+  Standardized inference preprocessing.
+
+- src/models/model.py
+  Central model architecture definition.
+
+- src/models/train.py
+  Training orchestrator and history export.
+
+- src/models/evaluate.py
+  Metrics computation and JSON export.
+
+- src/models/predict.py
+  Inference CLI endpoint.
+
+- src/utils/config.py
+  YAML loading/validation.
+
+- src/utils/logging_utils.py
+  Consistent runtime logging.
+
+- tests/test_config.py
+  Config parser guardrail.
+
+- tests/test_preprocess.py
+  Image preprocessing shape/range guardrail.
+
+
+============================================================
+6) Typical Workflows by Persona
+============================================================
+
+Student / Researcher workflow:
+1. Start with train_fast.yaml to validate pipeline changes quickly.
+2. Move to train.yaml for final-quality run.
+3. Evaluate and collect reports/metrics.json.
+4. Summarize findings with training_history.csv and notebook plots.
+
+Engineer workflow:
+1. Modify code in src/ modules.
+2. Run tests.
+3. Run fast train profile.
+4. Run evaluation and confirm no regressions.
+
+Demo workflow:
+1. Ensure model file exists.
+2. Run predict.py on arbitrary images.
+3. Show predicted class + probabilities.
+
+
+============================================================
+7) Quality, Reproducibility, and Professionalism
+============================================================
+
+This structure is professional because it provides:
+- clear module boundaries
+- reproducible config files
+- deterministic artifact locations
+- separate experimentation vs production code
+- baseline tests
+- documented commands and outputs
+
+
+============================================================
+8) Current Limitations and Next Improvements
+============================================================
+
+Current limitations:
+- baseline CNN only (no transfer learning branch yet)
+- H5 model format emits a deprecation-style warning in modern Keras
+- tests are foundational but not exhaustive
+
+Recommended next steps:
+- add EfficientNet/ResNet model option via config switch
+- save native .keras model in addition to .h5
+- add confusion matrix + classification report export
+- add dataset validation checks (class imbalance, corruption)
+- add CI pipeline for tests and linting
+
+
+============================================================
+9) Conclusion
+============================================================
+
+The project now supports both educational and practical workflows:
+- fast iteration for development
+- reproducible full training
+- standardized evaluation
+- direct prediction usage
+
+It is structured to scale from a course assignment to a maintainable ML mini-project with minimal rework.
+
+End of document.

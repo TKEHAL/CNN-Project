@@ -1,0 +1,6 @@
+data:
+  train_dir: data/raw/fruits/train
+  image_size: [128, 128]
+
+model:
+  model_path: src/models/modelCNN.h5

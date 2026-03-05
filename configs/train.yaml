@@ -1,0 +1,22 @@
+seed: 42
+
+data:
+  train_dir: data/raw/fruits/train
+  val_dir: data/raw/fruits/validation
+  image_size: [128, 128]
+  batch_size: 32
+
+training:
+  epochs: 20
+  learning_rate: 0.001
+  early_stopping_patience: 5
+  augment: true
+
+model:
+  conv_filters: [32, 64, 128]
+  dense_units: 256
+  dropout: 0.4
+
+output:
+  model_path: src/models/modelCNN.h5
+  history_path: reports/training_history.csv

@@ -1,0 +1,226 @@
+Fruit Image Classification Using Convolutional Neural Networks
+Academic Project Report (Version 2)
+
+Author: Taoufikkehal
+Project: CNN TP1
+Date: 2026-03-05
+
+=================================================================
+Abstract
+=================================================================
+
+This report presents the architecture, implementation rationale, and operational workflow of a fruit image classification project based on Convolutional Neural Networks (CNNs). The project was restructured into a professional machine-learning layout to improve reproducibility, maintainability, and clarity of experimentation. In addition to model development, this work formalizes configuration-driven execution, modular code organization, and reporting practices suitable for academic and applied contexts.
+
+Keywords: Computer Vision, CNN, Image Classification, Reproducibility, MLOps-lite
+
+=================================================================
+Table of Contents
+=================================================================
+
+1. Introduction
+2. Project Objectives
+3. System Architecture and Folder Structure
+4. Design Choices and Technical Justifications
+5. Data Pipeline and Preprocessing Strategy
+6. Modeling Strategy
+7. Training, Evaluation, and Inference Workflows
+8. Configuration Profiles and Experimental Agility
+9. Validation, Testing, and Quality Controls
+10. Outputs and Deliverables
+11. Limitations and Future Work
+12. Conclusion
+
+=================================================================
+1. Introduction
+=================================================================
+
+Image classification is a foundational task in computer vision and a common educational entry point for deep learning. This project targets multi-class fruit classification (apple, banana, orange) and was redesigned to follow professional engineering practices. The final structure enables both rapid experimentation and reproducible training/evaluation runs.
+
+=================================================================
+2. Project Objectives
+=================================================================
+
+Primary objectives:
+- Build an end-to-end CNN training pipeline for fruit classification.
+- Ensure reproducibility via external YAML configurations.
+- Separate experimentation code from production-style modules.
+- Generate persistent metrics and artifacts for reporting.
+- Provide a practical CLI interface for train/evaluate/predict tasks.
+
+Secondary objectives:
+- Establish a scalable code layout for future model upgrades.
+- Enable fast iteration profiles for constrained compute environments.
+
+=================================================================
+3. System Architecture and Folder Structure
+=================================================================
+
+Project root layout:
+
+ml_project/
+├── configs/
+├── data/
+│   ├── raw/
+│   └── processed/
+├── notebooks/
+├── reports/
+├── src/
+│   ├── data/
+│   ├── features/
+│   ├── models/
+│   └── utils/
+└── tests/
+
+Rationale per component:
+- configs/: decouples hyperparameters and paths from source code.
+- data/raw/: immutable source dataset.
+- data/processed/: generated derivatives (future feature assets, metadata).
+- notebooks/: exploratory and instructional experiments.
+- src/: reusable, testable, production-style Python package.
+- reports/: centralized experiment outputs and evaluation evidence.
+- tests/: quality guardrails for key utilities.
+
+=================================================================
+4. Design Choices and Technical Justifications
+=================================================================
+
+4.1 Modularization
+- Choice: Split logic into data/features/models/utils.
+- Justification: Reduces coupling and clarifies maintenance responsibilities.
+
+4.2 Config-driven execution
+- Choice: YAML configs for train/evaluate/predict.
+- Justification: Reproducibility, comparability, and easier collaboration.
+
+4.3 Dedicated lifecycle scripts
+- Choice: Independent scripts for train.py, evaluate.py, predict.py.
+- Justification: Cleaner MLOps flow and lower operational ambiguity.
+
+4.4 Output standardization
+- Choice: CSV for training curves and JSON for metrics.
+- Justification: Machine-readable outputs for analysis and automation.
+
+=================================================================
+5. Data Pipeline and Preprocessing Strategy
+=================================================================
+
+The dataset follows a class-folder structure under train/validation/test.
+
+Implemented approach:
+- Custom tf.data pipeline from explicit image path indexing.
+- On-the-fly decoding, resizing, normalization, one-hot encoding.
+- Training augmentation via random flip/rotation/zoom/translation.
+- Prefetching for pipeline efficiency.
+
+Why this approach:
+- It is robust in constrained environments.
+- It avoids semaphore/thread-pool issues encountered with legacy directory iterators in this runtime.
+- It remains aligned with standard Keras/TensorFlow workflows.
+
+=================================================================
+6. Modeling Strategy
+=================================================================
+
+Baseline architecture:
+- Multiple Conv2D + MaxPooling blocks
+- Flatten + Dense hidden layer
+- Dropout regularization
+- Softmax output for multi-class classification
+
+Optimization setup:
+- Loss: categorical cross-entropy
+- Optimizer: Adam
+- Metrics: accuracy
+- Callbacks: EarlyStopping and ModelCheckpoint
+
+Reasoning:
+- CNN baseline is pedagogically clear and computationally accessible.
+- Early stopping controls overfitting.
+- Checkpointing guarantees best validation model persistence.
+
+=================================================================
+7. Training, Evaluation, and Inference Workflows
+=================================================================
+
+Training command:
+python -m src.models.train --config configs/train.yaml
+
+Evaluation command:
+python -m src.models.evaluate --config configs/evaluate.yaml
+
+Inference command:
+python -m src.models.predict --config configs/predict.yaml --image /path/to/image.png
+
+Workflow interpretation:
+- Training generates model weights and epoch history.
+- Evaluation measures generalization on held-out test data.
+- Prediction supports practical demonstration and ad hoc validation.
+
+=================================================================
+8. Configuration Profiles and Experimental Agility
+=================================================================
+
+8.1 Standard profile (train.yaml)
+- Intended for fuller training quality.
+
+8.2 Fast profile (train_fast.yaml)
+- Reduced image size and epochs.
+- Lighter model topology.
+- Purpose: shorter turnaround for debugging and rapid iteration.
+
+This dual-profile design balances scientific rigor and practical productivity.
+
+=================================================================
+9. Validation, Testing, and Quality Controls
+=================================================================
+
+Existing tests:
+- test_config.py: validates YAML loading behavior.
+- test_preprocess.py: validates preprocessing shape and value range.
+
+Quality implications:
+- Ensures foundational reliability for shared utilities.
+- Provides a baseline to extend toward broader test coverage.
+
+Recommended additions:
+- class consistency checks across train/val/test
+- CLI smoke tests for each entrypoint
+- integration test for full miniature train/eval run
+
+=================================================================
+10. Outputs and Deliverables
+=================================================================
+
+Key generated artifacts:
+- src/models/modelCNN.h5
+- reports/training_history.csv
+- reports/metrics.json
+
+Utility of each artifact:
+- model file: deployable trained weights.
+- history CSV: learning dynamics and diagnostics.
+- metrics JSON: concise benchmark summary.
+
+=================================================================
+11. Limitations and Future Work
+=================================================================
+
+Current limitations:
+- Baseline CNN only (no transfer learning branch).
+- H5 format is legacy-preferred warning in modern Keras ecosystems.
+- Test suite is minimal.
+
+Future work roadmap:
+- Add transfer-learning options (EfficientNet/ResNet) via config.
+- Save native .keras format in parallel.
+- Export confusion matrix and per-class metrics.
+- Add lightweight experiment tracking metadata.
+- Expand automated tests and CI checks.
+
+=================================================================
+12. Conclusion
+=================================================================
+
+The project now reflects a professional ML project baseline while remaining suitable for academic instruction. Its architecture supports transparent experimentation, reproducible execution, and practical model usage. The implemented structure minimizes technical debt for future extension and enables a clean path from prototype to maintainable code.
+
+End of Academic Version.

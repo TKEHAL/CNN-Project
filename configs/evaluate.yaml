@@ -1,0 +1,10 @@
+data:
+  test_dir: data/raw/fruits/test
+  image_size: [128, 128]
+  batch_size: 32
+
+model:
+  model_path: src/models/modelCNN.h5
+
+output:
+  metrics_path: reports/metrics.json
