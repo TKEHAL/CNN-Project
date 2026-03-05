@@ -1,4 +1,4 @@
-.PHONY: install train eval test lint
+.PHONY: install train eval gui test lint
 
 install:
 	pip install -e .[dev]
@@ -8,6 +8,9 @@ train:
 
 eval:
 	python -m src.models.evaluate --config configs/evaluate.yaml
+
+gui:
+	python -m src.models.gui_predict --config configs/predict.yaml
 
 test:
 	pytest

@@ -19,4 +19,5 @@ model:
 
 output:
   model_path: src/models/modelCNN.h5
+  secondary_model_path: src/models/modelCNN.keras
   history_path: reports/training_history.csv

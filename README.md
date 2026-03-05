@@ -42,6 +42,18 @@ Predict one image:
 python -m src.models.predict --config configs/predict.yaml --image /path/to/image.png
 ```
 
+GUI interface (upload an image and predict):
+
+```bash
+python -m src.models.gui_predict --config configs/predict.yaml
+```
+
+or:
+
+```bash
+make gui
+```
+
 ## Notes
 
 - Existing notebook: `notebooks/CNNmodel.ipynb`
