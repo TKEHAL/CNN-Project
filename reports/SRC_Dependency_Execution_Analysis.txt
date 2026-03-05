@@ -1,0 +1,394 @@
+SRC Dependency and Execution Analysis
+Project: MCP CNN project
+Date: 2026-03-05
+
+=================================================================
+1) Scope of this document
+=================================================================
+
+This document explains, in detail, the internal dependencies between files and functions in the `src/` folder, and the exact execution sequence for each main runtime path:
+- Training (`src/models/train.py`)
+- Evaluation (`src/models/evaluate.py`)
+- CLI Prediction (`src/models/predict.py`)
+- GUI Prediction (`src/models/gui_predict.py`)
+
+It also clarifies data flow, model flow, and where each artifact is produced.
+
+
+=================================================================
+2) High-level module architecture
+=================================================================
+
+`src/` is organized into domain modules:
+
+- `src/data/`
+  Responsibility: dataset indexing and tf.data construction.
+
+- `src/features/`
+  Responsibility: per-image preprocessing for inference.
+
+- `src/models/`
+  Responsibility: model definition + runtime entrypoints (train/eval/predict/gui).
+
+- `src/utils/`
+  Responsibility: shared infrastructure helpers (config loading, logging).
+
+Architectural style:
+- Layered and directional: `models` depends on `data`, `features`, `utils`.
+- Utility modules are leaf dependencies.
+- No circular imports in current design.
+
+
+=================================================================
+3) File-level dependency graph
+=================================================================
+
+3.1 `src/models/train.py`
+Imports:
+- `src.data.dataset.build_generators`
+- `src.models.model.build_cnn`
+- `src.utils.config.load_yaml`
+- `src.utils.logging_utils.get_logger`
+External libs:
+- `tensorflow`, `pandas`, `argparse`, `pathlib`
+
+Depends on:
+- Config structure from `configs/train*.yaml`
+- Dataset directory structure (`train/`, `validation/`)
+
+Produces:
+- primary model file (`output.model_path`, usually `.h5`)
+- optional secondary model (`output.secondary_model_path`, usually `.keras`)
+- training history CSV (`output.history_path`)
+
+
+3.2 `src/models/evaluate.py`
+Imports:
+- `src.data.dataset.build_test_generator`
+- `src.utils.config.load_yaml`
+- `src.utils.logging_utils.get_logger`
+External libs:
+- `tensorflow`, `json`, `argparse`, `pathlib`
+
+Depends on:
+- Trained model path from config
+- Test dataset directory
+
+Produces:
+- metrics JSON (`output.metrics_path`) with `test_loss`, `test_accuracy`
+
+
+3.3 `src/models/predict.py`
+Imports:
+- `src.data.dataset.infer_class_names`
+- `src.features.preprocess.load_and_prepare_image`
+- `src.utils.config.load_yaml`
+External libs:
+- `tensorflow`, `numpy`, `argparse`
+
+Depends on:
+- Model file
+- Train folder class names (for label mapping)
+- Input image path passed by CLI
+
+Produces:
+- Console output only (predicted class + per-class probabilities)
+
+
+3.4 `src/models/gui_predict.py`
+Imports:
+- `src.data.dataset.infer_class_names`
+- `src.features.preprocess.load_and_prepare_image`
+- `src.utils.config.load_yaml`
+External libs:
+- `tensorflow`, `numpy`, `tkinter`, `PIL`
+
+Depends on:
+- Config file
+- Model path
+- Train folder class names
+- User-selected image path via file picker
+
+Produces:
+- Interactive UI output:
+  - Predicted class
+  - Confidence shown as "Accuracy"
+  - Per-class probabilities
+
+
+3.5 `src/models/model.py`
+Exports:
+- `build_cnn(input_shape, num_classes, cfg)`
+
+Used by:
+- `train.py` only
+
+Role:
+- Isolates architecture/hyperparameter mapping from training orchestration.
+
+
+3.6 `src/data/dataset.py`
+Exports:
+- `build_generators(...)`
+- `build_test_generator(...)`
+- `infer_class_names(...)`
+Internal helpers:
+- `_list_images_and_labels(...)`
+- `_make_dataset(...)`
+
+Used by:
+- `train.py`, `evaluate.py`, `predict.py`, `gui_predict.py`
+
+Role:
+- Central source of truth for class discovery and dataset construction.
+
+
+3.7 `src/features/preprocess.py`
+Exports:
+- `load_and_prepare_image(path, image_size)`
+
+Used by:
+- `predict.py`, `gui_predict.py`
+
+Role:
+- Shared single-image preprocessing path for inference consistency.
+
+
+3.8 `src/utils/config.py`
+Exports:
+- `load_yaml(path)`
+
+Used by:
+- `train.py`, `evaluate.py`, `predict.py`, `gui_predict.py`
+
+Role:
+- Common config-loading behavior + guardrails.
+
+
+3.9 `src/utils/logging_utils.py`
+Exports:
+- `get_logger(name)`
+
+Used by:
+- `train.py`, `evaluate.py`
+
+Role:
+- Uniform log format and logger initialization.
+
+
+=================================================================
+4) Function-level dependencies and call chains
+=================================================================
+
+4.1 Training call chain (`python -m src.models.train --config ...`)
+
+1. `train.parse_args()`
+2. `train.main()`
+3. `load_yaml(config_path)` from `utils/config.py`
+4. `build_generators(...)` from `data/dataset.py`
+   4.1 `_list_images_and_labels(train_dir)`
+   4.2 `_list_images_and_labels(val_dir)`
+   4.3 `_make_dataset(train_paths, train_labels, ..., augment=True/False)`
+   4.4 `_make_dataset(val_paths, val_labels, ..., augment=False)`
+5. `build_cnn(input_shape, num_classes, cfg)` from `models/model.py`
+6. `model.compile(...)`
+7. `model.fit(train_ds, validation_data=val_ds, callbacks=[...])`
+8. `pandas.DataFrame(history.history).to_csv(history_path)`
+9. Optional: `model.save(secondary_model_path)`
+10. End
+
+Key callback behavior:
+- `EarlyStopping(..., restore_best_weights=True)` restores best validation-loss weights in memory.
+- `ModelCheckpoint(save_best_only=True)` writes best-validation-accuracy model to primary path.
+
+
+4.2 Evaluation call chain (`python -m src.models.evaluate --config ...`)
+
+1. `evaluate.parse_args()`
+2. `evaluate.main()`
+3. `load_yaml(config_path)`
+4. `build_test_generator(test_dir, image_size, batch_size)`
+   4.1 `_list_images_and_labels(test_dir)`
+   4.2 `_make_dataset(..., shuffle=False, augment=False)`
+5. `tf.keras.models.load_model(model_path)`
+6. `model.evaluate(test_ds)`
+7. Write JSON metrics to `metrics_path`
+8. End
+
+
+4.3 CLI prediction call chain (`python -m src.models.predict ... --image ...`)
+
+1. `predict.parse_args()`
+2. `predict.main()`
+3. `load_yaml(config_path)`
+4. `infer_class_names(train_dir)`
+5. `tf.keras.models.load_model(model_path)`
+6. `load_and_prepare_image(image_path, image_size)`
+7. `model.predict(x)`
+8. `np.argmax(probs)`
+9. Print predicted class and probability table
+10. End
+
+
+4.4 GUI prediction call chain (`python -m src.models.gui_predict ...` or `python gui_predict.py`)
+
+Startup phase:
+1. `gui_predict.parse_args()`
+2. `resolve_config_path(...)`
+3. `load_yaml(...)`
+4. `resolve_project_path(train_dir)`
+5. `resolve_project_path(model_path)`
+6. `infer_class_names(train_dir)`
+7. `tf.keras.models.load_model(model_path)`
+8. Tkinter UI initialization
+
+User interaction phase (button click):
+9. `predict_image()` callback executes
+10. `filedialog.askopenfilename(...)`
+11. Preview image load with PIL + `ImageTk.PhotoImage`
+12. `load_and_prepare_image(file_path, image_size)`
+13. `model.predict(x)`
+14. `np.argmax(probs)`
+15. UI updates:
+   - Predicted class
+   - "Accuracy" (top-class confidence)
+   - Full probability list
+
+
+=================================================================
+5) Data flow and artifact flow
+=================================================================
+
+5.1 Training data flow
+- Filesystem classes (folder names) -> class indices
+- Image files -> TensorFlow tensors via tf.data
+- Preprocessing in `_make_dataset`:
+  - decode -> resize -> float cast -> normalize [0,1]
+  - optional augmentation for training
+- Model consumes batched tensors and one-hot labels.
+
+5.2 Model artifact flow
+- During training: checkpoint writes best model to `output.model_path`.
+- After training: optional second save to `output.secondary_model_path`.
+- Evaluation/prediction load model from config-defined path.
+
+5.3 Metrics/report flow
+- `history.history` -> CSV (`training_history*.csv`)
+- evaluate outputs -> JSON (`metrics.json`)
+
+
+=================================================================
+6) Configuration dependency contract
+=================================================================
+
+6.1 `train.py` expects keys
+- `data.train_dir`, `data.val_dir`, `data.image_size`, `data.batch_size`
+- `training.epochs`, `training.learning_rate`, `training.early_stopping_patience`, `training.augment`
+- `model.conv_filters`, `model.dense_units`, `model.dropout`
+- `output.model_path`, optional `output.secondary_model_path`, optional `output.history_path`
+
+6.2 `evaluate.py` expects keys
+- `data.test_dir`, `data.image_size`, `data.batch_size`
+- `model.model_path`
+- `output.metrics_path` (optional, defaults available)
+
+6.3 `predict.py` / `gui_predict.py` expect keys
+- `data.train_dir`, `data.image_size`
+- `model.model_path`
+
+
+=================================================================
+7) Coupling analysis
+=================================================================
+
+Low-coupled points:
+- Model architecture isolated in `model.py`.
+- Preprocessing isolated for inference in `preprocess.py`.
+- Config handling centralized in `config.py`.
+
+Medium-coupled points:
+- Class-name mapping relies on filesystem order from train directory.
+- Prediction label mapping depends on current train folder structure matching training-time classes.
+
+Potentially fragile contract:
+- `predict.py` and `gui_predict.py` infer class order from current `train_dir`, not serialized model metadata.
+  If classes/folders change post-training, labels may mismatch.
+
+
+=================================================================
+8) Execution sequence summary by command
+=================================================================
+
+A) Training
+`src.models.train.main`
+ -> `load_yaml`
+ -> `build_generators`
+   -> `_list_images_and_labels` x2
+   -> `_make_dataset` x2
+ -> `build_cnn`
+ -> `compile`
+ -> `fit`
+ -> `save history`
+ -> `optional secondary save`
+
+B) Evaluation
+`src.models.evaluate.main`
+ -> `load_yaml`
+ -> `build_test_generator`
+   -> `_list_images_and_labels`
+   -> `_make_dataset`
+ -> `load_model`
+ -> `evaluate`
+ -> `write metrics JSON`
+
+C) CLI Predict
+`src.models.predict.main`
+ -> `load_yaml`
+ -> `infer_class_names`
+ -> `load_model`
+ -> `load_and_prepare_image`
+ -> `predict`
+ -> `print outputs`
+
+D) GUI Predict
+`src.models.gui_predict.main`
+ -> `resolve_config_path` + `load_yaml`
+ -> `resolve_project_path` (train/model)
+ -> `infer_class_names`
+ -> `load_model`
+ -> `Tk mainloop`
+ -> on button click: file picker -> preprocess -> predict -> display
+
+
+=================================================================
+9) Recommendations (based on dependency analysis)
+=================================================================
+
+1. Persist class index mapping at training time (JSON alongside model)
+- Prevents label mismatch if folder order changes later.
+
+2. Share path-resolution helper across scripts
+- `gui_predict.py` has robust path fallback; same logic can be reused in predict/train/evaluate for consistency.
+
+3. Add a dedicated `src/models/inference.py`
+- Centralize shared predict logic for CLI + GUI.
+
+4. Consider `tf.keras.Input(...)` in `model.py`
+- Avoid Keras warning about `input_shape` directly on Conv2D.
+
+5. Extend tests to integration-level
+- Verify end-to-end command flow with miniature sample dataset.
+
+
+=================================================================
+10) Conclusion
+=================================================================
+
+The `src/` codebase has a clean and mostly one-directional dependency structure:
+- `models` orchestrates
+- `data` and `features` provide domain services
+- `utils` provides infrastructure helpers
+
+Execution paths are explicit and predictable. The current architecture is suitable for coursework and practical extension, with clear opportunities to harden inference-label consistency and shared runtime utilities.
+
+End of analysis.
